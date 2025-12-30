@@ -284,8 +284,8 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
   val id_load_use = Wire(Bool())
   val id_reg_fence = RegInit(false.B)
-  val id_ren = IndexedSeq(id_ctrl.rxs1, id_ctrl.rxs2)
-  val id_raddr = IndexedSeq(id_raddr1, id_raddr2)
+  val id_ren = IndexedSeq(id_ctrl.rxs1, id_ctrl.rxs2, true.B)
+  val id_raddr = IndexedSeq(id_raddr1, id_raddr2, id_raddr3)
   val rf = new RegFile(regAddrMask, xLen)
   val id_rs = id_raddr.map(rf.read _)
   val ctrl_killd = Wire(Bool())
@@ -391,6 +391,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     A2_RS2 -> ex_rs(1).asSInt,
     A2_IMM -> ex_imm,
     A2_SIZE -> Mux(ex_reg_rvc, 2.S, 4.S)))
+  val ex_op3 = ex_rs(2).asSInt;
 
   val alu = Module(aluFn match {
     case _: ALUFN => new ALU
@@ -399,6 +400,13 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   alu.io.fn := ex_ctrl.alu_fn
   alu.io.in2 := ex_op2.asUInt
   alu.io.in1 := ex_op1.asUInt
+
+  val quantAlu = Module(new QuantALU)
+  quantAlu.io.quant := ex_ctrl.quant
+  quantAlu.io.fn := ex_ctrl.alu_fn
+  quantAlu.io.in2 := ex_op2.asUInt
+  quantAlu.io.in1 := ex_op1.asUInt
+  quantAlu.io.in3 := ex_op3.asUInt
 
   // multiplier and divider
   val div = Module(new MulDiv(if (pipelinedMul) mulDivParams.copy(mulUnroll = 0) else mulDivParams, width = xLen, aluFn = aluFn))
@@ -546,7 +554,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     mem_reg_hls_or_dv := io.dmem.req.bits.dv
     mem_reg_pc := ex_reg_pc
     // IDecode ensured they are 1H
-    mem_reg_wdata := alu.io.out
+    mem_reg_wdata := Mux(ex_ctrl.quant, quantAlu.io.out,alu.io.out)
     mem_br_taken := alu.io.cmp_out
 
     when (ex_ctrl.rxs2 && (ex_ctrl.mem || ex_ctrl.rocc || ex_sfence)) {
@@ -762,6 +770,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
   val hazard_targets = Seq((id_ctrl.rxs1 && id_raddr1 =/= 0.U, id_raddr1),
                            (id_ctrl.rxs2 && id_raddr2 =/= 0.U, id_raddr2),
+                           (id_ctrl.quant && id_raddr3 =/= 0.U, id_raddr3),
                            (id_ctrl.wxd  && id_waddr  =/= 0.U, id_waddr))
   val fp_hazard_targets = Seq((io.fpu.dec.ren1, id_raddr1),
                               (io.fpu.dec.ren2, id_raddr2),
