@@ -744,6 +744,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.rocc.csrs <> csr.io.roccCSRs
   io.trace.time := csr.io.time
   io.trace.insns := csr.io.trace
+  
   if (rocketParams.debugROB) {
     val csr_trace_with_wdata = WireInit(csr.io.trace(0))
     csr_trace_with_wdata.wdata.get := rf_wdata

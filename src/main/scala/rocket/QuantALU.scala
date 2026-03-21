@@ -58,8 +58,8 @@ class QuantALU(implicit p: Parameters) extends AbstractQuantALU()(p) {
 
   val resultVec = VecInit((0 until elementsMask).map { i =>
     val wideAct = activationsVec(i).asSInt.pad(16)
-    Mux(maskVec(i) === "b10".U,  wideAct,
-    Mux(maskVec(i) === "b11".U, -wideAct, 0.S(16.W)))
+    Mux(maskVec(i) === "b01".U,  wideAct,
+    Mux(maskVec(i) === "b10".U,  wideAct << 1, 0.S(16.W)))
   })
 
   when (io.quant) {
